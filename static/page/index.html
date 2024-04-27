@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script type="text/javascript" src="/static/res/js/vue.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/res/css/at.min.css">
+    <script type="text/javascript" src="/static/res/js/at.min.js"></script>
+    <script src="/static/res/js/axios.min.js"></script>
+    <style type="text/css">
+        .layout-logo {
+            width: 200px;
+            height: 100%;
+            /*background: #5b6270;*/
+            border-radius: 3px;
+            float: left;
+            position: relative;
+            left: 20px;
+            color: white;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <at-menu mode="horizontal" :active-name="activeName" theme="dark">
+        <div class="layout-logo">量化策略控制面板</div>
+        <div>
+            <at-menu-item name="taskMng"><i class="icon icon-home"></i>任务管理</at-menu-item>
+            <at-menu-item name="configMng"><i class="icon icon-layers"></i>配置管理</at-menu-item>
+        </div>
+    </at-menu>
+    <div style="padding: 10px 20px" style="display:none">
+        <div class="row at-row">
+            <div :class="`col-md-24`" :style="{display: 'inline'}">
+                <at-card style="width: 100%;" :no-hover="true" :bordered="false" :body-style="{ padding:0 }">
+                    <h4 slot="title">当前任务</h4>
+                    <div style="margin-top:10px">
+                        <at-select v-model="query.status" style="width:100px" @on-change="statusQuery">
+                            <at-option value="Running">运行中</at-option>
+                            <at-option value="Stop">已停止</at-option>
+                        </at-select>
+                        <at-button @click="showAddTask" type="primary" size="small">添加任务</at-button>
+                    </div>
+                    <div style="margin-top:10px">
+                        <at-table :columns="mainZone.columns" :data="mainZone.data" size="small" stripe>
+                        </at-table>
+                    </div>
+                </at-card>
+            </div>
+            <div :class="`col-md-24`" :style="{display: 'inline'}">
+                <at-card style="width: 100%;" :no-hover="true" :bordered="false">
+                    <h4 slot="title">汇总详情</h4>
+                    <div>
+                        <div class="row at-row">
+                            <div :class="`col-md-12`">
+                                <at-card style="width: 100%;" :no-hover="true" :bordered="false">
+                                    <h4 slot="title">策略规则</h4>
+                                    <div v-if="strategyInfo">
+                                        <div class="row at-row">
+                                            <div :class="`col-md-3`">策略编号：</div>
+                                            <div :class="`col-md-21`">{{strategyInfo.id}}</div>
+                                        </div>
+                                        <div class="row at-row">
+                                            <div :class="`col-md-3`">策略名称：</div>
+                                            <div :class="`col-md-21`">{{strategyInfo.name}}</div>
+                                        </div>
+                                        <div class="row at-row">
+                                            <div :class="`col-md-3`">策略内容：</div>
+                                            <div :class="`col-md-21`" v-html = 'strategyInfo.desc'></div>
+                                        </div>
+                                    </div>
+                                    <div v-else>
+                                        <p>无法获取策略详细信息</p>
+                                    </div>
+                                </at-card>
+                            </div>
+                            <div :class="`col-md-12`">
+                                <at-card style="width: 100%;" :no-hover="true" :bordered="false">
+                                    <h4 slot="title">实时行情数据</h4>
+                                    <div v-if="quotaInfo">
+                                        <p>合约: {{quotaInfo.symbol_pair}}</p>
+                                        <p style="margin-top: 5px">当前价格: <at-tag color="success">{{quotaInfo.price}}</at-tag></p>
+                                        <p style="margin-top: 5px">布林带: <at-tag color="default">上：{{quotaInfo.boll.upper}}</at-tag>
+                                            <at-tag color="default">下：{{quotaInfo.boll.lower}}</at-tag></p>
+                                        <p style="margin-top: 5px">MACD: <at-tag color="default">dea：{{quotaInfo.macd_base.dea}}</at-tag>
+                                            <at-tag color="default">dif：{{quotaInfo.macd_base.dif}}</at-tag>
+                                            <at-tag color="default">值：{{quotaInfo.macd_base.value}}</at-tag>
+                                            <at-tag color="default">前一周期值：{{quotaInfo.macd_base.value_before}}</at-tag></p>
+                                        <p style="margin-top: 5px">MACD(反推): <at-tag color="default">dea：{{quotaInfo.macd_reverse.dea}}</at-tag>
+                                            <at-tag color="default">dif：{{quotaInfo.macd_reverse.dif}}</at-tag>
+                                            <at-tag color="default">值：{{quotaInfo.macd_reverse.value}}</at-tag></p>
+                                        <p style="margin-top: 5px">BBI: <at-tag color="default">{{quotaInfo.bbi}}</at-tag></p>
+
+                                    </div>
+                                    <div v-else>
+                                        <p>暂无最新行情信息</p>
+                                    </div>
+                                </at-card>
+                            </div>
+                        </div>
+                        <div class="row at-row">
+                            <div :class="`col-md-12`">
+                                <at-card style="width: 100%;" :no-hover="true" :bordered="false">
+                                    <h4 slot="title">总盈亏汇总</h4>
+                                    <div>
+                                        <at-table :columns="allSummarycolumns" :data="allSummary.data" size="small" stripe>
+                                        </at-table>
+                                    </div>
+                                </at-card>
+                            </div>
+                            <div :class="`col-md-12`">
+                                <at-card style="width: 100%;" :no-hover="true" :bordered="false">
+                                    <h4 slot="title">日盈亏汇总</h4>
+                                    <div>
+                                        <at-table :columns="daySummaryColumns" :data="daySummary.data" size="small" stripe>
+                                        </at-table>
+                                    </div>
+                                </at-card>
+                            </div>
+                        </div>
+                        <at-card style="width: 100%;" :no-hover="true" :bordered="false">
+                            <h4 slot="title">最近10次操盘</h4>
+                            <div>
+                                <at-table :columns="latestedColumns" :data="latested.data" size="small" stripe>
+                                </at-table>
+                            </div>
+                        </at-card>
+                    </div>
+                </at-card>
+                <at-modal v-model="taskVisible" title="添加任务" width="700" :mask-closable="false" @on-confirm="tapConfigConfirm" @on-cancel="tapCancel">
+                    <div class="row at-row">
+                        <div :class="`col-md-12`">
+                            -----基础配置-----<br>
+                            用户：<at-select v-model="addTaskForm.userId" @on-change="userChange">
+                            <at-option v-for="(user, i) in selectData.users" :value="user.id">{{user.name}}</at-option>
+                        </at-select>
+                            交易所账号： <at-select v-model="addTaskForm.ueId" @on-change="ueChange">
+                            <at-option v-for="(m, i) in selectData.marketAccounts" :value="m.id">{{m.exchange}}-{{m.env}}-{{m.user_name}}</at-option>
+                        </at-select>
+                            选择币种： <at-select v-model="addTaskForm.symbol" @on-change="symbolChange">
+                            <at-option v-for="(s, i) in selectData.symbols" :value="s.currency">{{s.exchange}}({{s.currency}})</at-option>
+                        </at-select>
+                            选择策略： <at-select v-model="addTaskForm.strategy" @on-change="symbolChange">
+                            <at-option v-for="(t, i) in selectData.strategies" :value="t.id">{{t.name}}({{t.id}})</at-option>
+                        </at-select>
+                        </div>
+                        <div :class="`col-md-12`">
+                            -----策略配置-----<br>
+                            杠杆倍数(倍)<at-input v-model="addTaskForm.config.multiply" placeholder="杠杆倍数(倍)" style="width:150px"></at-input>
+                            单笔金额(U)<at-input v-model="addTaskForm.config.orderMoney" placeholder="单笔金额(U)" style="width:150px"></at-input>
+                            K线周期(分钟)<at-input v-model="addTaskForm.config.orderPeriod" placeholder="K线周期(分钟)" style="width:150px"></at-input>
+                            止盈率(%)<at-input v-model="addTaskForm.config.stopWinRate" placeholder="止盈率(%)" style="width:150px"></at-input>
+                            仓位上限(%)<at-input v-model="addTaskForm.config.maxStockRate" placeholder="仓位上限(%)" style="width:150px"></at-input>
+                            标准差(%)<at-input v-model="addTaskForm.config.orderMoneySd" placeholder="标准差(%)" style="width:150px"></at-input>
+                            止损率(%)<at-input v-model="addTaskForm.config.stopLoseRate" placeholder="止损率(%)" style="width:150px"></at-input>
+                            增量止盈率(%)<at-input v-model="addTaskForm.config.increatementWinRate" placeholder="增量止盈率(%)" style="width:150px"></at-input>
+                        </div>
+                    </div>
+                </at-modal>
+                <at-modal v-model="configPanelVisible" title="配置详情" width="300" :mask-closable="true" >
+                    <p>杠杆倍数: {{configPanel.data.multiply}} (倍)</p>
+                    <p>单笔金额: {{configPanel.data.orderMoney}} (U)</p>
+                    <p>K线周期: {{configPanel.data.orderPeriod}} (分钟)</p>
+                    <p>止盈率: {{configPanel.data.stopWinRate}} (%)</p>
+                    <p>仓位上限: {{configPanel.data.maxStockRate}} (%)</p>
+                    <p>标准差: {{configPanel.data.orderMoneySd}} %)</p>
+                    <p>止损率: {{configPanel.data.stopLoseRate}} (%)</p>
+                    <p>增量止盈率: {{configPanel.data.increatementWinRate}} (%)</p>
+                </at-modal>
+            </div>
+        </div>
+    </div>
+</div>
+    <script>
+        let _this;
+        let _interval;
+        new Vue({
+            el: '#app',
+            data: {
+                query: {
+                  status: 'Running'
+                },
+                configPanelVisible: false,
+                configPanel: {
+                    data: {}
+                },
+                addTaskForm: {
+                    userId: '',
+                    ueId: '',
+                    symbol: '',
+                    strategy: '',
+                    exchange: '',
+                    config: {
+                        multiply: 30,
+                        orderMoney: 10,
+                        orderPeriod: 15,
+                        stopWinRate: 16,
+                        maxStockRate: 30,
+                        orderMoneySd: 1,
+                        stopLoseRate: 30,
+                        increatementWinRate: 5
+                    }
+                },
+                visible: false,
+                theme1: 'primary',
+                strategyInfo: null,
+                quotaInfo: null,
+                allOrderSummaryInfo: null,
+                dayOrderSummaryInfo: [],
+                lastestOrderInfo: [],
+                taskVisible:false,
+                select_task: null,
+                activeName: 'taskMng',
+                selectData: {
+                    users: [],
+                    marketAccounts: [],
+                    symbols: [],
+                    config: {},
+                    strategies: {}
+                },
+                mainZone: {
+                    columns: [
+                        {title:"任务ID", key: "id"},
+                        {title:"用户ID", key: "user_id"},
+                        {title:"用户名", key: "name"},
+                        {title:"环境", key: "env", render: (h, params) => {
+                                return h('div', params.item.env == 'Dist' ? '正式环境' : '模拟环境')
+                            }},
+                        {title:"策略No.", key: "strategy_no"},
+                        {title:"交易所", key: "exchange", },
+                        {title:"币种", key: "symbol_pair", },
+                        {title:"操作", key: "id", render: (h, params) => {
+                            return h('div', [
+                                h('AtButton', {
+                                    props: { size: 'smaller', hollow: true },
+                                    style: { marginRight: '8px' },
+                                    on: {
+                                        click: () => {
+                                            _this.select_task = null;
+                                            _this.detail(params.item);
+                                        }
+                                    }
+                                }, '查看详情'),
+                                h('AtButton', {
+                                    props: { size: 'smaller', hollow: true },
+                                    style: { marginRight: '8px' },
+                                    on: {
+                                        click: () => {
+                                            _this.showConfigPanelDetail(params.item.config);
+                                        }
+                                    }
+                                }, '配置信息'),
+                                h('AtButton', {
+                                    props: { size: 'smaller', hollow: true },
+                                    on: {
+                                        click: () => {
+                                            if(params.item.status == 'Running') {
+                                                _this.actionTask('stopTask', params.item.id);
+                                            } else {
+                                                _this.actionTask('restartTask', params.item.id);
+                                            }
+                                        }
+                                    }
+                                }, params.item.status == 'Running' ? '停止任务' : "重新启动")
+                            ])
+                        }}
+                    ],
+                    data: []
+                },
+                allSummarycolumns: [
+                    {title:"总下单次数", key: "total"},
+                    {title:"总平仓次数", key: "p_win"},
+                    {title:"赢(次)", key: "win"},
+                    {title:"亏(次)", key: "lose"},
+                    {title:"胜率", key: "lose", render: (h, params) => {
+                            return h('div', (params.item.win/params.item.p_win).toFixed(4) * 100 + '%')
+                        }},
+                    {title:"总手续费($)", key: "fee"},
+                    {title:"总盈利额($)", key: "end_amount"},
+                    {title:"净利润($)", key: "end_amount", render: (h, params) => {
+                            return h('div', (params.item.end_amount + params.item.fee).toFixed(2))
+                        }},
+                ],
+                allSummary: {
+                    data: []
+                },
+                daySummaryColumns: [
+                    {title:"日期", key: "fmt_date", width: 260},
+                    {title:"总下单(次)", key: "total"},
+                    {title:"总平仓(次)", key: "p_win"},
+                    {title:"赢(次)", key: "win"},
+                    {title:"亏(次)", key: "lose"},
+                    {title:"胜率(%)", key: "lose", render: (h, params) => {
+                            return h('div', (params.item.win/params.item.p_win).toFixed(4) * 100 + '%')
+                        }},
+                    {title:"总手续费($)", key: "fee"},
+                    {title:"总盈利额($)", key: "end_amount"},
+                    {title:"净利润($)", key: "end_amount", render: (h, params) => {
+                            return h('div', (params.item.end_amount + params.item.fee).toFixed(2))
+                        }},
+                ],
+                daySummary: {
+                    data: []
+                },
+                latestedColumns: [
+                    {title:"合约名", key: "instrument_id"},
+                    {title:"环境", key: "env"},
+                    {title:"合约(张)", key: "balance"},
+                    {title:"手续费($)", key: "fee"},
+                    {title:"下单时间", key: "ledger_fmt_time"}
+                ],
+                latested: {
+                    data: []
+                }
+            },
+            methods: {
+                statusQuery: function() {
+                    this.getTaskList();
+                },
+                showConfigPanelDetail(config) {
+                    this.configPanelVisible = true;
+                    this.configPanel.data = JSON.parse(config);
+                },
+                userChange: function() {
+                    this.all_market_accounts(this.addTaskForm.userId);
+                },
+                ueChange: function(value) {
+                    this.all_symbols()
+                },
+                symbolChange: function() {
+
+                },
+                show: function() {
+                    this.visible = true;
+                },
+                tapConfigConfirm: function() {
+                    if(this.addTaskForm.userId == '') {
+                        this.$Message.error('请选择用户');
+                        return;
+                    }
+                    if(this.addTaskForm.ueId == '') {
+                        this.$Message.error('用选择交易所账号');
+                        return;
+                    }
+                    if(this.addTaskForm.strategy == '') {
+                        this.$Message.error('用选择交易策略');
+                        return;
+                    }
+                    if(this.addTaskForm.symbol == '') {
+                        this.$Message.error('请选择币种');
+                        return;
+                    }
+
+                    this.newTaskSubmit();
+                },
+                showAddTask() {
+                    this.taskVisible = true
+                    this.all_users()
+                },
+                tapCancel: function() {
+
+                },
+                all_symbols() {
+                    let self = this;
+                    axios.get('/api/data/symbols/' + self.addTaskForm.ueId, {})
+                        .then(function (response) {
+                            self.selectData.symbols = response.data.data
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                all_users() {
+                    let self = this;
+                    axios.get('/api/data/users', {})
+                        .then(function (response) {
+                            self.selectData.users = response.data.data
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                all_stragegies() {
+                    let self = this;
+                    axios.get('/api/data/strategies', {})
+                        .then(function (response) {
+                            self.selectData.strategies = response.data.data
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                all_market_accounts(userId) {
+                    let self = this;
+                    axios.get('/api/data/market_accounts/' + userId, {params: {user_id: userId}})
+                        .then(function (response) {
+                            self.selectData.marketAccounts = response.data.data
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                getTaskList: function() {
+                    let self = this;
+                    axios.get('/api/task/list', {params: {status: this.query.status}})
+                        .then(function (response) {
+                            self.mainZone.data = response.data.data
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                newTaskSubmit: function() {
+                    axios.post('/api/action/newTask', this.addTaskForm)
+                        .then(function (response) {
+                            if(response.status != 200) {
+                                self.$Message.error('添加任务失败');
+                            } else {
+                                self.$Message.success('添加任务成功');
+                                self.getTaskList();
+                            }
+                        })
+                        .catch(function (error) {
+                            self.$Message.error('添加任务失败');
+                            console.log(error);
+                        });
+                },
+                actionTask: function(action, task_id) {
+                    let self = this;
+                    axios.get('/api/action/' + action + '/' + task_id, {})
+                        .then(function (response) {
+                            if(response.status == 200) {
+                                self.$Message.success('操作成功');
+                                self.getTaskList();
+                            } else {
+                                self.$Message.error('操作失败');
+                            }
+                        })
+                        .catch(function (error) {
+                            self.$Message.error('操作失败');
+                            console.log(error);
+                        });
+                },
+                detail: function(row) {
+                    if(_interval) {
+                        clearInterval(_interval)
+                    }
+
+                    this.select_task = row;
+                    this.getStrategyInfo(this.select_task.strategy_no);
+                    this.realtimeQuota(this.select_task.id);
+
+                    _interval = setInterval(function() {
+                        _this.realtimeQuota(_this.select_task.id);
+                    }, 2000)
+
+                    this.allOrderSummary(this.select_task.id, this.select_task.strategy_no)
+                    this.dayOrderSummary(this.select_task.id, this.select_task.strategy_no)
+                    this.lastestOrder(this.select_task.id, this.select_task.strategy_no)
+                },
+                configDetail: function(row) {
+                    configData = row.config;
+                },
+                taskAction: function(action, item) {
+                    let self = this;
+                    data = {
+                        taskId: item.id,
+                        action: action,
+                        exchange: item.exchange,
+                        symbol: item.symbol_info
+                    }
+                    axios.post('/api/action', data)
+                        .then(function (response) {
+                            if(response.status != 200) {
+                                self.$Message.error('任务操作失败');
+                                return
+                            } else {
+                                self.$Message.error('任务操作成功');
+                                self.getTaskList();
+                            }
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                getStrategyInfo: function(strategy) {
+                    let self = this;
+                    axios.get('/api/strategy/' + strategy, {})
+                        .then(function (response) {
+                            if(response.status != 200) {
+                                self.$Message.error('数据获取失败');
+                                return
+                            } else {
+                                self.strategyInfo = response.data.data
+                            }
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                realtimeQuota: function(ue_id) {
+                    let self = this;
+                    axios.get('/api/quota/' + ue_id, {})
+                        .then(function (response) {
+                            if(response.status != 200) {
+                                self.$Message.error('数据获取失败');
+                                return
+                            } else {
+                                if(response.data.data) {
+                                    self.quotaInfo = response.data.data
+                                } else {
+                                    self.quotaInfo = {}
+                                }
+                            }
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                allOrderSummary: function(ue_id, strategy) {
+                    let self = this;
+                    axios.get('/api/user/' + ue_id + '/order/summary', {params: {strategy: strategy}})
+                        .then(function (response) {
+                            if(response.status != 200) {
+                                self.$Message.error('数据获取失败');
+                                return
+                            } else {
+                                if(response.data.data) {
+                                    self.allSummary.data = [response.data.data]
+                                } else {
+                                    self.allSummary.data = []
+                                }
+                            }
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                dayOrderSummary: function(ue_id, strategy) {
+                    let self = this;
+                    axios.get('/api/user/' + ue_id + '/day_order/summary', {params: {strategy: strategy}})
+                        .then(function (response) {
+                            if(response.status != 200) {
+                                self.$Message.error('数据获取失败');
+                                return
+                            } else {
+                                if(response.data.data) {
+                                    self.daySummary.data = response.data.data
+                                } else {
+                                    self.daySummary.data = []
+                                }
+                            }
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                },
+                lastestOrder: function(ue_id, strategy) {
+                    let self = this;
+                    axios.get('/api/user/' + ue_id + '/order', {params: {strategy: strategy, limit: 10}})
+                        .then(function (response) {
+                            if(response.status != 200) {
+                                self.$Message.error('数据获取失败');
+                                return
+                            } else {
+                                if(response.data.data) {
+                                    self.latested = response.data.data
+                                } else {
+                                    self.latested = []
+                                }
+                            }
+                        })
+                        .catch(function (error) {
+                            console.log(error);
+                        });
+                }
+            },
+            mounted() {
+                this.getTaskList();
+                this.all_stragegies();
+            },
+            created() {
+                _this = this;
+            }
+        })
+    </script>
+</body>
+</html>
